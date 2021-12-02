@@ -3,9 +3,6 @@
 
 
 #include <stb_image.h>
-
-
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 
@@ -20,6 +17,8 @@
 #include "camera.h"
 
 #include <iostream>
+#include <string>
+#include <vector>
 #include <string>
 
 // INCLUDE DAYS
@@ -53,6 +52,17 @@ float lastFrame = 0.0f;
 GLTtext* answer_part_one;
 GLTtext* answer_part_two;
 
+// Sky box
+std::vector<std::string> faces
+{
+    "./Textures/Skybox/right.jpg",
+    "./Textures/Skybox/left.jpg",
+    "./Textures/Skybox/bottom.jpg",
+    "./Textures/Skybox/top.jpg",
+    "./Textures/Skybox/front.jpg",
+    "./Textures/Skybox/back.jpg"
+};
+
 void initDays() {
     day1 = Day1();
     day2 = Day2();
@@ -61,6 +71,40 @@ void initDays() {
 void renderDays() {
     //day.render();
 }
+
+// Sky Box
+unsigned int loadCubemap(std::vector<std::string> faces)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, textureID);
+
+    int width, height, nrChannels;
+    for (unsigned int i = 0; i < faces.size(); i++)
+    {
+        unsigned char* data = stbi_load(faces[i].c_str(), &width, &height, &nrChannels, 0);
+        if (data)
+        {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::cout << "Cubemap tex failed to load at path: " << faces[i] << std::endl;
+            stbi_image_free(data);
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+    return textureID;
+}
+
+
 
 int main()
 {
@@ -116,9 +160,10 @@ int main()
     // -----------------------------
     glEnable(GL_DEPTH_TEST);
 
-    // build and compile our shader zprogram
+    // build and compile our shader programs
     // ------------------------------------
     Shader ourShader("./Shaders/shader.vert", "./Shaders/shader.frag");
+    Shader skyboxShader("./Shaders/skybox.vert", "./Shaders/skybox.frag");
 
     // set up vertex data (and buffer(s)) and configure vertex attributes
     // ------------------------------------------------------------------
@@ -178,6 +223,65 @@ int main()
         glm::vec3(1.5f,  0.2f, -1.5f),
         glm::vec3(-1.3f,  1.0f, -1.5f)
     };
+
+    float skyboxVertices[] = {
+        // positions          
+        -1.0f,  1.0f, -1.0f,
+        -1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f, -1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+
+        -1.0f, -1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f,
+        -1.0f, -1.0f,  1.0f,
+
+        -1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f, -1.0f,
+         1.0f,  1.0f,  1.0f,
+         1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f,  1.0f,
+        -1.0f,  1.0f, -1.0f,
+
+        -1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f, -1.0f,
+         1.0f, -1.0f, -1.0f,
+        -1.0f, -1.0f,  1.0f,
+         1.0f, -1.0f,  1.0f
+    };
+
+    unsigned int skyboxVBO, skyboxVAO;
+    glGenVertexArrays(1, &skyboxVAO);
+    glGenBuffers(1, &skyboxVBO);
+
+    glBindVertexArray(skyboxVAO);
+
+    glBindBuffer(GL_ARRAY_BUFFER, skyboxVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), skyboxVertices, GL_STATIC_DRAW);
+
+    // position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
     unsigned int VBO, VAO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -246,6 +350,9 @@ int main()
     }
     stbi_image_free(data);
 
+    // cubemap texture
+    unsigned int cubemapTexture = loadCubemap(faces);
+
     // tell opengl for each sampler to which texture unit it belongs to (only has to be done once)
     // -------------------------------------------------------------------------------------------
     ourShader.use();
@@ -268,6 +375,11 @@ int main()
         // input
         // -----
         processInput(window);
+
+        // camera/view transformation
+        glm::mat4 view = glm::mat4(glm::mat3(camera.GetViewMatrix()));
+        // pass projection matrix to shader (note that in this case it could change every frame)
+        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
 
         std::string answer1;
         std::string answer2;
@@ -295,6 +407,15 @@ int main()
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        glDepthMask(GL_FALSE);
+        skyboxShader.use();
+        ourShader.setMat4("projection", projection);
+        ourShader.setMat4("view", view);
+        glBindVertexArray(skyboxVAO);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+        glDepthMask(GL_TRUE);
+
         // RENDER TEXT
         gltBeginDraw();
         gltColor(0.0f, 1.0f, 0.0f, 0.0f);
@@ -309,15 +430,12 @@ int main()
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, texture2);
 
+        // camera/view transformation
+        view = camera.GetViewMatrix();
+
         // activate shader
         ourShader.use();
-
-        // pass projection matrix to shader (note that in this case it could change every frame)
-        glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         ourShader.setMat4("projection", projection);
-
-        // camera/view transformation
-        glm::mat4 view = camera.GetViewMatrix();
         ourShader.setMat4("view", view);
 
         // render boxes
@@ -333,8 +451,6 @@ int main()
 
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
-
-        // RENDER DAYS
 
         
 
